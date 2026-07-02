@@ -67,3 +67,28 @@ vcpkg_installed/
 # test output & cache
 Testing/
 .cache/
+
+__pycache__/
+
+# Python virtual environments
+venv/
+.venv/
+env/
+
+# Python caches
+*.pyc
+.pytest_cache/
+
+# Test outputs
+tests/output/
+*.wav
+
+# IDEs and Editors
+.vscode/
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+.DS_Store
