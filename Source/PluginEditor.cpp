@@ -10,15 +10,11 @@ GeneSynthAudioProcessorEditor::GeneSynthAudioProcessorEditor (GeneSynthAudioProc
 {
     juce::LookAndFeel::setDefaultLookAndFeel(&customLookAndFeel);
 
-    oscA = std::make_unique<genesynth::OscASection>(audioProcessor.apvts);
-    oscB = std::make_unique<genesynth::OscBSection>(audioProcessor.apvts);
-    noise = std::make_unique<genesynth::NoiseSection>(audioProcessor.apvts);
-    filter = std::make_unique<genesynth::FilterSectionUI>(audioProcessor.apvts);
-    
-    modulation = std::make_unique<genesynth::ModulationSectionUI>(audioProcessor.apvts);
-    globalEnv = std::make_unique<genesynth::GlobalEnvSection>(audioProcessor.apvts);
-    softClipper = std::make_unique<genesynth::SoftClipperSection>(audioProcessor.apvts);
-    reverb = std::make_unique<genesynth::ReverbSection>(audioProcessor.apvts);
+    synthView = std::make_unique<genesynth::SynthView>(audioProcessor.apvts, audioProcessor.keyboardState);
+    morphView = std::make_unique<genesynth::MorphView>(audioProcessor.apvts, audioProcessor.inferenceEngine.get());
+
+    addAndMakeVisible(synthView.get());
+    addChildComponent(morphView.get()); // Hidden by default
 
     addAndMakeVisible(menuButton);
     addAndMakeVisible(saveButton);
@@ -28,17 +24,9 @@ GeneSynthAudioProcessorEditor::GeneSynthAudioProcessorEditor (GeneSynthAudioProc
 
     genesynth::GeneSynthLookAndFeel::setSliderStyle(masterVolSlider, false, juce::Colours::white);
 
-    addAndMakeVisible(oscA.get());
-    addAndMakeVisible(oscB.get());
-    addAndMakeVisible(noise.get());
-    addAndMakeVisible(filter.get());
-    
-    addAndMakeVisible(modulation.get());
-    addAndMakeVisible(globalEnv.get());
-    addAndMakeVisible(softClipper.get());
-    addAndMakeVisible(reverb.get());
+    modeButton.onClick = [this] { toggleMode(); };
 
-    setSize (1000, 700);
+    setSize (1000, 800);
 }
 
 GeneSynthAudioProcessorEditor::~GeneSynthAudioProcessorEditor()
@@ -53,7 +41,8 @@ void GeneSynthAudioProcessorEditor::paint (juce::Graphics& g)
 
 void GeneSynthAudioProcessorEditor::resized()
 {
-    auto bounds = getLocalBounds().reduced(10);
+    auto fullBounds = getLocalBounds();
+    auto bounds = fullBounds.reduced(10);
     
     // Top Bar
     auto topBar = bounds.removeFromTop(40);
@@ -72,38 +61,19 @@ void GeneSynthAudioProcessorEditor::resized()
 
     bounds.removeFromTop(20);
 
-    // Grid layout
-    juce::Grid grid;
-    using Track = juce::Grid::TrackInfo;
-    using Fr = juce::Grid::Fr;
-    using Px = juce::Grid::Px;
+    if (isMorphMode) {
+        morphView->setBounds(bounds);
+    } else {
+        // Give synthView the full bounds so it can draw massive neumorphic shadows 
+        // that bleed into the window margins without clipping!
+        synthView->setBounds(fullBounds);
+    }
+}
 
-    grid.templateRows = { Track(Fr(3)), Track(Fr(2)), Track(Fr(2)) };
-    grid.templateColumns = { Track(Fr(1)), Track(Fr(1)), Track(Fr(1)), Track(Fr(1)), Track(Fr(1)) };
-    grid.columnGap = Px(10);
-    grid.rowGap = Px(10);
-
-    // Generators Row (Row 1)
-    grid.items.add(juce::GridItem(oscA.get()).withArea(1, 1, 2, 2));
-    grid.items.add(juce::GridItem(oscB.get()).withArea(1, 2, 2, 3));
-    grid.items.add(juce::GridItem(noise.get()).withArea(1, 3, 2, 4));
-    grid.items.add(juce::GridItem(filter.get()).withArea(1, 4, 2, 5));
-    // The 5th column is empty in row 1 for now (or physic could go here later if added)
-
-    // Modulation Row (Row 2)
-    // Spans from col 1 to col 4
-    grid.items.add(juce::GridItem(modulation.get()).withArea(2, 1, 3, 5));
-    // Soft Clipper on the right
-    grid.items.add(juce::GridItem(softClipper.get()).withArea(2, 5, 3, 6));
-
-    // Global & Effects Row (Row 3)
-    // Global Envelope spans from col 1 to 4
-    grid.items.add(juce::GridItem(globalEnv.get()).withArea(3, 1, 4, 5));
-    // Reverb on the right
-    grid.items.add(juce::GridItem(reverb.get()).withArea(3, 5, 4, 6));
-
-    grid.performLayout(bounds);
-
-    juce::Logger::writeToLog("Editor resized! bounds = " + bounds.toString());
-    juce::Logger::writeToLog("oscA bounds = " + oscA->getBounds().toString());
+void GeneSynthAudioProcessorEditor::toggleMode()
+{
+    isMorphMode = !isMorphMode;
+    synthView->setVisible(!isMorphMode);
+    morphView->setVisible(isMorphMode);
+    resized();
 }

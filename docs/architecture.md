@@ -59,3 +59,16 @@ L'interface graphique est dessinée par `GeneSynthAudioProcessorEditor`, mais el
 - Toutes ces sections héritent de `BaseSection`.
 - Chaque section s'occupe exclusivement de créer, placer et lier ses propres contrôles visuels (potards/boutons) à l'APVTS.
 - Cette séparation permet de concevoir rapidement l'UI et de déplacer des blocs de potards sans casser le reste de l'interface.
+
+## 8. Intelligence Artificielle et Inférence
+L'intégration de l'IA (transfert de timbre et génération de patch) repose sur les principes suivants :
+
+- **Normalisation du Pitch (C5)** : Lorsqu'un sample est importé, son pitch fondamental est détecté (via l'algorithme **MPM**). Le sample est ensuite repitché (normalisé) sur un Do 5 (C5) avant d'être analysé. Cela permet au réseau de neurones de se concentrer exclusivement sur le timbre (paramètres du synthé) sans être perturbé par la hauteur de la note.
+- **Décodeur Latent et Morph Pad** : L'espace latent du réseau de neurones (les gènes abstraits du son) est exposé dans l'APVTS via des paramètres invisibles. Le **Morph Pad** de l'UI permet de naviguer dans cet espace latent. À chaque mouvement, le réseau de neurones (couche de décodage) recalcule et met à jour instantanément les paramètres classiques du synthé (Osc, Filtre, Enveloppes).
+- **Modèles Dynamiques** : Le moteur d'inférence permet de charger dynamiquement des modèles d'IA externes (`.onnx` ou `.json`). L'utilisateur n'est pas bloqué sur une seule IA et peut importer des modèles entraînés sur des spécificités différentes (ex: modèle spécialisé FM, modèle spécialisé Analogique).
+## 8. Intelligence Artificielle et Inférence
+L'intégration de l'IA (transfert de timbre et génération de patch) repose sur les principes suivants :
+
+- **Normalisation du Pitch (C5)** : Lorsqu'un sample est importé, son pitch fondamental est détecté (via l'algorithme **MPM**). Le sample est ensuite repitché (normalisé) sur un Do 5 (C5) avant d'être analysé. Cela permet au réseau de neurones de se concentrer exclusivement sur le timbre (paramètres du synthé) sans être perturbé par la hauteur de la note.
+- **Décodeur Latent et Morph Pad** : L'espace latent du réseau de neurones (les gènes abstraits du son) est exposé dans l'APVTS via des paramètres invisibles. Le **Morph Pad** de l'UI permet de naviguer dans cet espace latent. À chaque mouvement, le réseau de neurones (couche de décodage) recalcule et met à jour instantanément les paramètres classiques du synthé (Osc, Filtre, Enveloppes).
+- **Modèles Dynamiques** : Le moteur d'inférence (basé préférentiellement sur **ONNX Runtime**) permet de charger dynamiquement des modèles d'IA externes (). L'utilisateur n'est pas bloqué sur une seule IA et peut importer des modèles entraînés sur des spécificités différentes (ex: modèle spécialisé FM, modèle spécialisé Analogique).

@@ -21,6 +21,7 @@ private:
     ModulableParameter* CUTOFF;
     ModulableParameter* MIX;
     juce::dsp::StateVariableTPTFilter<float> filter;
+    juce::dsp::DryWetMixer<float> mixer;
 };
 
 } // namespace genesynth

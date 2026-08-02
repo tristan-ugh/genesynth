@@ -98,8 +98,9 @@ void SynthVoice::process(const juce::dsp::ProcessContextReplacing<float>& contex
         float amt = lfoAmt->getValue();
         float phaseInc = juce::MathConstants<float>::twoPi * hz / getSampleRate();
         
-        // 1. Mise à jour de l'enveloppe
+        // 1. Mise à jour de l'enveloppe avec courbe n^2 (exponentielle/quadratique)
         float envVal = modEnv.getNextSample();
+        envVal = envVal * envVal;
         
         // 2. Mise à jour du LFO
         float lfoVal = std::sin(lfoPhase) * amt;

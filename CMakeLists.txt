@@ -19,7 +19,35 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(juce)
 
-# No ONNX Runtime for now
+# ==============================================================================
+# Fetch ONNX Runtime (Pre-compiled)
+# ==============================================================================
+if(WIN32)
+    set(ONNXRUNTIME_URL "https://github.com/microsoft/onnxruntime/releases/download/v1.17.1/onnxruntime-win-x64-1.17.1.zip")
+elseif(UNIX AND NOT APPLE)
+    set(ONNXRUNTIME_URL "https://github.com/microsoft/onnxruntime/releases/download/v1.17.1/onnxruntime-linux-x64-1.17.1.tgz")
+endif()
+
+message(STATUS "Fetching ONNX Runtime...")
+FetchContent_Declare(
+    onnxruntime
+    URL ${ONNXRUNTIME_URL}
+)
+FetchContent_MakeAvailable(onnxruntime)
+
+add_library(onnxruntime_lib SHARED IMPORTED)
+if(WIN32)
+    set_target_properties(onnxruntime_lib PROPERTIES
+        IMPORTED_LOCATION "${onnxruntime_SOURCE_DIR}/lib/onnxruntime.dll"
+        IMPORTED_IMPLIB "${onnxruntime_SOURCE_DIR}/lib/onnxruntime.lib"
+        INTERFACE_INCLUDE_DIRECTORIES "${onnxruntime_SOURCE_DIR}/include"
+    )
+elseif(UNIX AND NOT APPLE)
+    set_target_properties(onnxruntime_lib PROPERTIES
+        IMPORTED_LOCATION "${onnxruntime_SOURCE_DIR}/lib/libonnxruntime.so"
+        INTERFACE_INCLUDE_DIRECTORIES "${onnxruntime_SOURCE_DIR}/include"
+    )
+endif()
 
 # ==============================================================================
 # Setup Plugin Target
@@ -42,12 +70,19 @@ juce_add_plugin(genesynth_prototype
 target_sources(genesynth_prototype PRIVATE
     Source/PluginEditor.cpp
     Source/PluginProcessor.cpp
+    Source/Analysis/PitchTracker.cpp
+    Source/Analysis/AudioResampler.cpp
+    Source/Analysis/FeatureExtractor.cpp
+    Source/Analysis/InferenceEngine.cpp
     Source/Style/GeneSynthLookAndFeel.cpp
     Source/Parameters/ModulableParameter.cpp
     Source/Parameters/SynthParameter.cpp
     Source/Parameters/StaticParameter.cpp
     Source/Parameters/ParameterFactory.cpp
     Source/UI/SynthComponents.cpp
+    Source/UI/Visualizers.cpp
+    Source/UI/Views/SynthView.cpp
+    Source/UI/Views/MorphView.cpp
     Source/Framework/iBlock.cpp
     Source/Framework/aBlock/aBlock.cpp
     Source/Framework/aBlock/aContainer/aContainer.cpp
@@ -81,7 +116,47 @@ target_link_libraries(genesynth_prototype PRIVATE
     juce::juce_audio_utils
     juce::juce_audio_plugin_client
     juce::juce_dsp
+    onnxruntime_lib
 )
+
+if(WIN32)
+    target_link_options(genesynth_prototype_VST3 PRIVATE "/DELAYLOAD:onnxruntime.dll")
+    target_link_libraries(genesynth_prototype_VST3 PRIVATE delayimp.lib)
+    
+    target_link_options(genesynth_prototype_Standalone PRIVATE "/DELAYLOAD:onnxruntime.dll")
+    target_link_libraries(genesynth_prototype_Standalone PRIVATE delayimp.lib)
+endif()
+
+# Copy ONNX Runtime shared library to output directories BEFORE juce_vst3_helper runs
+if(WIN32)
+    add_custom_command(TARGET genesynth_prototype_Standalone PRE_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        "${onnxruntime_SOURCE_DIR}/lib/onnxruntime.dll"
+        "$<TARGET_FILE_DIR:genesynth_prototype_Standalone>"
+    )
+    add_custom_command(TARGET genesynth_prototype_VST3 PRE_BUILD
+        COMMAND ${CMAKE_COMMAND} -E make_directory "$<TARGET_FILE_DIR:genesynth_prototype_VST3>"
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        "${onnxruntime_SOURCE_DIR}/lib/onnxruntime.dll"
+        "$<TARGET_FILE_DIR:genesynth_prototype_VST3>"
+        # Copy to the build directory where juce_vst3_helper.exe lives
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        "${onnxruntime_SOURCE_DIR}/lib/onnxruntime.dll"
+        "${CMAKE_BINARY_DIR}/Release"
+    )
+elseif(UNIX AND NOT APPLE)
+    add_custom_command(TARGET genesynth_prototype_Standalone PRE_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        "${onnxruntime_SOURCE_DIR}/lib/libonnxruntime.so"
+        "$<TARGET_FILE_DIR:genesynth_prototype_Standalone>"
+    )
+    add_custom_command(TARGET genesynth_prototype_VST3 PRE_BUILD
+        COMMAND ${CMAKE_COMMAND} -E make_directory "$<TARGET_FILE_DIR:genesynth_prototype_VST3>"
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        "${onnxruntime_SOURCE_DIR}/lib/libonnxruntime.so"
+        "$<TARGET_FILE_DIR:genesynth_prototype_VST3>"
+    )
+endif()
 
 # Désactiver le WebBrowserComponent pour éviter la dépendance webkit2gtk-4.0 obsolète sous Linux
 target_compile_definitions(genesynth_prototype PUBLIC
@@ -91,3 +166,35 @@ target_compile_definitions(genesynth_prototype PUBLIC
 )
 
 juce_generate_juce_header(genesynth_prototype)
+
+# ==============================================================================
+# Python C API Library
+# ==============================================================================
+add_library(genesynth_python_api SHARED
+    Source/API/GeneSynthAPI.cpp
+)
+
+target_include_directories(genesynth_python_api PRIVATE
+    "${CMAKE_CURRENT_SOURCE_DIR}/Source"
+)
+
+target_link_libraries(genesynth_python_api PRIVATE
+    genesynth_prototype
+)
+
+if(WIN32)
+    target_link_options(genesynth_python_api PRIVATE "/DELAYLOAD:onnxruntime.dll")
+    target_link_libraries(genesynth_python_api PRIVATE delayimp.lib)
+    
+    add_custom_command(TARGET genesynth_python_api PRE_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        "${onnxruntime_SOURCE_DIR}/lib/onnxruntime.dll"
+        "$<TARGET_FILE_DIR:genesynth_python_api>"
+    )
+elseif(UNIX AND NOT APPLE)
+    add_custom_command(TARGET genesynth_python_api PRE_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        "${onnxruntime_SOURCE_DIR}/lib/libonnxruntime.so"
+        "$<TARGET_FILE_DIR:genesynth_python_api>"
+    )
+endif()

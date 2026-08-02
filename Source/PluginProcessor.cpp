@@ -5,6 +5,7 @@
 #include "Parameters/ParameterFactory.h"
 #include "Framework/aBlock/aContainer/SynthEngine/PolyphonyManager/PolyphonyManager.h"
 #include "Framework/aBlock/aContainer/SynthEngine/PolyphonyManager/SynthVoice/SynthVoice.h"
+
 GeneSynthAudioProcessor::GeneSynthAudioProcessor()
 #ifndef JucePlugin_PreferredChannelConfigurations
      : AudioProcessor (BusesProperties()
@@ -17,6 +18,39 @@ GeneSynthAudioProcessor::GeneSynthAudioProcessor()
                        ), apvts(*this, nullptr, "Parameters", createParameterLayout())
 #endif
 {
+    inferenceEngine = std::make_unique<genesynth::InferenceEngine>();
+    
+    auto dummyPath = juce::File::getSpecialLocation(juce::File::currentExecutableFile)
+                        .getParentDirectory().getChildFile("dummy_model.onnx");
+    
+    if (!dummyPath.existsAsFile()) {
+        // Fallback to source directory using __FILE__ macro
+        juce::File sourceFile(__FILE__);
+        dummyPath = sourceFile.getParentDirectory().getParentDirectory().getChildFile("dummy_model.onnx");
+    }
+
+    if (dummyPath.existsAsFile()) {
+        inferenceEngine->loadModel(dummyPath.getFullPathName());
+    } else {
+        juce::Logger::writeToLog("Could not find dummy_model.onnx at: " + dummyPath.getFullPathName());
+    }
+
+    inferenceEngine->onInferenceComplete = [this](const std::vector<float>& results) {
+        if (results.size() != 41) {
+            juce::Logger::writeToLog("Warning: Expected 41 parameters, got " + juce::String(results.size()));
+            return;
+        }
+        
+        juce::Logger::writeToLog("Applying AI parameters to UI!");
+        
+        for (size_t i = 0; i < allParams.size() && i < results.size(); ++i) {
+            juce::String paramIDStr(allParams[i]->getName());
+            if (auto* param = apvts.getParameter(paramIDStr)) {
+                param->setValueNotifyingHost(results[i]);
+            }
+        }
+    };
+
     using namespace genesynth;
     
         // 1. Instanciation des paramètres dans allParams
@@ -144,7 +178,48 @@ juce::AudioProcessorValueTreeState::ParameterLayout GeneSynthAudioProcessor::cre
 
     // Generators (Osc A)
     params.push_back(std::make_unique<juce::AudioParameterFloat>("osc_a_wave", "Osc A Wave", 0.0f, 1.0f, 0.0f));
-    params.push_back(std::make_unique<juce::AudioParameterFloat>("osc_a_ratio", "Osc A Ratio", 0.125f, 8.0f, 1.0f));
+    
+    auto ratioFrom0To1 = [](float /*start*/, float /*end*/, float v) {
+        const float ratios[] = {0.125f, 0.25f, 0.5f, 0.75f, 1.0f, 1.5f, 2.0f, 3.0f, 4.0f, 5.0f, 6.0f, 7.0f, 8.0f};
+        int numRatios = 13;
+        int index = (int)(v * (numRatios - 1) + 0.5f);
+        index = std::clamp(index, 0, numRatios - 1);
+        return ratios[index];
+    };
+    
+    auto ratioTo0To1 = [](float /*start*/, float /*end*/, float v) {
+        const float ratios[] = {0.125f, 0.25f, 0.5f, 0.75f, 1.0f, 1.5f, 2.0f, 3.0f, 4.0f, 5.0f, 6.0f, 7.0f, 8.0f};
+        int numRatios = 13;
+        float best = ratios[0];
+        int bestIndex = 0;
+        float minDiff = std::abs(v - best);
+        for (int i = 0; i < numRatios; ++i) {
+            float diff = std::abs(v - ratios[i]);
+            if (diff < minDiff) {
+                minDiff = diff;
+                bestIndex = i;
+            }
+        }
+        return (float)bestIndex / (float)(numRatios - 1);
+    };
+
+    auto ratioSnap = [](float /*start*/, float /*end*/, float val) {
+        const float ratios[] = {0.125f, 0.25f, 0.5f, 0.75f, 1.0f, 1.5f, 2.0f, 3.0f, 4.0f, 5.0f, 6.0f, 7.0f, 8.0f};
+        float best = ratios[0];
+        float minDiff = std::abs(val - best);
+        for (float r : ratios) {
+            float diff = std::abs(val - r);
+            if (diff < minDiff) {
+                minDiff = diff;
+                best = r;
+            }
+        }
+        return best;
+    };
+    
+    juce::NormalisableRange<float> ratioRange(0.125f, 8.0f, ratioFrom0To1, ratioTo0To1, ratioSnap);
+    
+    params.push_back(std::make_unique<juce::AudioParameterFloat>("osc_a_ratio", "Osc A Ratio", ratioRange, 1.0f));
     params.push_back(std::make_unique<juce::AudioParameterFloat>("osc_a_vol_base", "Osc A Vol", 0.0f, 1.0f, 0.5f));
     params.push_back(std::make_unique<juce::AudioParameterFloat>("osc_a_vol_mod", "Osc A Vol Mod", 0.0f, 1.0f, 0.5f));
     params.push_back(std::make_unique<juce::AudioParameterFloat>("osc_a_freq_base", "Osc A Freq", 0.0f, 1.0f, 0.0f));
@@ -154,7 +229,7 @@ juce::AudioProcessorValueTreeState::ParameterLayout GeneSynthAudioProcessor::cre
 
     // Generators (Osc B)
     params.push_back(std::make_unique<juce::AudioParameterFloat>("osc_b_wave", "Osc B Wave", 0.0f, 1.0f, 0.0f));
-    params.push_back(std::make_unique<juce::AudioParameterFloat>("osc_b_ratio", "Osc B Ratio", 0.125f, 8.0f, 1.0f));
+    params.push_back(std::make_unique<juce::AudioParameterFloat>("osc_b_ratio", "Osc B Ratio", ratioRange, 1.0f));
     params.push_back(std::make_unique<juce::AudioParameterFloat>("osc_b_vol_base", "Osc B Vol", 0.0f, 1.0f, 0.5f));
     params.push_back(std::make_unique<juce::AudioParameterFloat>("osc_b_vol_mod", "Osc B Vol Mod", 0.0f, 1.0f, 0.5f));
     params.push_back(std::make_unique<juce::AudioParameterFloat>("osc_b_freq_base", "Osc B Freq", 0.0f, 1.0f, 0.0f));
@@ -195,6 +270,11 @@ juce::AudioProcessorValueTreeState::ParameterLayout GeneSynthAudioProcessor::cre
     params.push_back(std::make_unique<juce::AudioParameterFloat>("reverb_decay", "Reverb Decay", 0.0f, 1.0f, 0.5f));
     params.push_back(std::make_unique<juce::AudioParameterFloat>("reverb_size", "Reverb Size", 0.0f, 1.0f, 0.5f));
     params.push_back(std::make_unique<juce::AudioParameterFloat>("reverb_mix", "Reverb Mix", 0.0f, 1.0f, 0.0f));
+
+    // Morph Pad
+    params.push_back(std::make_unique<juce::AudioParameterFloat>("morph_spice", "Spice", 0.0f, 1.0f, 0.5f));
+    params.push_back(std::make_unique<juce::AudioParameterFloat>("morph_bright", "Bright", 0.0f, 1.0f, 0.5f));
+    params.push_back(std::make_unique<juce::AudioParameterFloat>("morph_time", "Time", 0.0f, 1.0f, 0.5f));
 
     // System
     params.push_back(std::make_unique<juce::AudioParameterFloat>("gate", "Gate", 0.0f, 1.0f, 0.0f));
@@ -292,6 +372,8 @@ void GeneSynthAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, ju
     if (midiMessages.getNumEvents() > 0) {
         std::cout << "processBlock: received " << midiMessages.getNumEvents() << " MIDI events from Host!\n";
     }
+
+    keyboardState.processNextMidiBuffer(midiMessages, 0, buffer.getNumSamples(), true);
 
     // HACK FOR TESTING: Translate GATE parameter to MIDI Note On/Off
     // DawDreamer MIDI seems to be ignored, so we generate it internally for tests

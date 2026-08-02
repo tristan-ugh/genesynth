@@ -2,6 +2,7 @@
 
 #include <JuceHeader.h>
 #include "Framework/aBlock/aContainer/SynthEngine/SynthEngine.h"
+#include "Analysis/InferenceEngine.h"
 #include "Parameters/SynthParameter.h"
 #include <vector>
 #include <memory>
@@ -41,6 +42,10 @@ public:
     void setStateInformation (const void* data, int sizeInBytes) override;
 
     juce::AudioProcessorValueTreeState apvts;
+    juce::MidiKeyboardState keyboardState;
+    
+    // IA Engine
+    std::unique_ptr<genesynth::InferenceEngine> inferenceEngine;
 
 private:
     juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout();

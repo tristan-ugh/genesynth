@@ -4,6 +4,8 @@
 #include "PluginProcessor.h"
 #include "Style/GeneSynthLookAndFeel.h"
 #include "UI/SynthComponents.h"
+#include "UI/Views/SynthView.h"
+#include "UI/Views/MorphView.h"
 
 class GeneSynthAudioProcessorEditor : public juce::AudioProcessorEditor
 {
@@ -15,6 +17,8 @@ public:
     void resized() override;
 
 private:
+    void toggleMode();
+
     GeneSynthAudioProcessor& audioProcessor;
     genesynth::GeneSynthLookAndFeel customLookAndFeel;
 
@@ -25,15 +29,10 @@ private:
     juce::Slider masterVolSlider;
     std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> volAttachment;
 
-    std::unique_ptr<genesynth::OscASection> oscA;
-    std::unique_ptr<genesynth::OscBSection> oscB;
-    std::unique_ptr<genesynth::NoiseSection> noise;
-    std::unique_ptr<genesynth::FilterSectionUI> filter;
-    
-    std::unique_ptr<genesynth::ModulationSectionUI> modulation;
-    std::unique_ptr<genesynth::GlobalEnvSection> globalEnv;
-    std::unique_ptr<genesynth::SoftClipperSection> softClipper;
-    std::unique_ptr<genesynth::ReverbSection> reverb;
+    std::unique_ptr<genesynth::SynthView> synthView;
+    std::unique_ptr<genesynth::MorphView> morphView;
+
+    bool isMorphMode = false;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (GeneSynthAudioProcessorEditor)
 };

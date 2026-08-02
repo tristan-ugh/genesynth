@@ -26,6 +26,7 @@ private:
     
     StaticParameter* GATE;
     juce::ADSR adsr;
+    juce::ADSR::Parameters lastParams;
     bool wasGateHigh = false;
 };
 

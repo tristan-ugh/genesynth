@@ -20,6 +20,9 @@ private:
     juce::Random random;
     
     juce::SmoothedValue<float> smoothVol;
+    juce::SmoothedValue<float> smoothFreq;
+    double sampleRate = 44100.0;
+    float z = 0.0f; // 1-pole state for noise color
 };
 
 } // namespace genesynth

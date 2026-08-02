@@ -59,6 +59,9 @@ void ExcitationSection::process(const juce::dsp::ProcessContextReplacing<float>&
     subBlock.copyFrom(inputBlock);
     noise.process(tempContext);
     outputBlock.add(subBlock); // Mix Noise to output
+    
+    // Reduce overall excitation gain to allow headroom for polyphony and filter resonance
+    outputBlock.multiplyBy(0.2f);
 }
 
 } // namespace genesynth

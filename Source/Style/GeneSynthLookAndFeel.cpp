@@ -3,8 +3,8 @@
 namespace genesynth {
 
 GeneSynthLookAndFeel::GeneSynthLookAndFeel() {
-    setColour(juce::ResizableWindow::backgroundColourId, juce::Colour(0xff181818)); // Very dark grey
-    setColour(juce::Slider::trackColourId, juce::Colour(0xff2a2a2a));
+    setColour(juce::ResizableWindow::backgroundColourId, juce::Colour(0xff0d0d0d)); // Very dark grey
+    setColour(juce::Slider::trackColourId, juce::Colour(0xff1a1a1a));
     setColour(juce::Slider::rotarySliderFillColourId, juce::Colour(0xff00ffff)); // Default cyan
 }
 
@@ -28,9 +28,21 @@ void GeneSynthLookAndFeel::drawRotarySlider(juce::Graphics& g, int x, int y, int
     auto rw = radius * 2.0f;
     auto angle = rotaryStartAngle + sliderPos * (rotaryEndAngle - rotaryStartAngle);
 
-    // Background track
-    g.setColour(slider.findColour(juce::Slider::trackColourId));
+    // Drop Shadow under the knob
+    juce::DropShadow shadow(juce::Colours::black.withAlpha(0.6f), 3, juce::Point<int>(0, 2));
+    juce::Path shadowPath;
+    shadowPath.addEllipse(rx, ry, rw, rw);
+    shadow.drawForPath(g, shadowPath);
+
+    // Background track (3D Gradient)
+    juce::ColourGradient bgGradient(juce::Colour(0xff222222), centreX, ry, 
+                                    juce::Colour(0xff111111), centreX, ry + rw, false);
+    g.setGradientFill(bgGradient);
     g.fillEllipse(rx, ry, rw, rw);
+
+    // Inner shadow for 3D rim effect (darker instead of lighter)
+    g.setColour(juce::Colours::black.withAlpha(0.6f));
+    g.drawEllipse(rx, ry, rw, rw, 1.0f);
 
     // Fill arc
     bool isBipolar = slider.getProperties().getWithDefault("isBipolar", false);
@@ -41,21 +53,15 @@ void GeneSynthLookAndFeel::drawRotarySlider(juce::Graphics& g, int x, int y, int
     } else {
         filledArc.addCentredArc(centreX, centreY, radius, radius, 0.0f, rotaryStartAngle, angle, true);
     }
-    g.setColour(slider.findColour(juce::Slider::rotarySliderFillColourId));
-    g.strokePath(filledArc, juce::PathStrokeType(4.0f, juce::PathStrokeType::curved, juce::PathStrokeType::rounded));
 
-    // Outline
-    g.setColour(juce::Colour(0xff3a3a3a));
-    g.drawEllipse(rx, ry, rw, rw, 1.5f);
+    auto fillColour = slider.findColour(juce::Slider::rotarySliderFillColourId);
+    
+    // Glow effect (Real Gaussian blur) is now drawn by the parent section to avoid clipping
 
-    // Pointer
-    juce::Path p;
-    auto pointerLength = radius * 0.33f;
-    auto pointerThickness = 2.0f;
-    p.addRectangle(-pointerThickness * 0.5f, -radius, pointerThickness, pointerLength);
-    p.applyTransform(juce::AffineTransform::rotation(angle).translated(centreX, centreY));
-    g.setColour(juce::Colours::white);
-    g.fillPath(p);
+    // Thin main line (restored to original thicker weight)
+    g.setColour(fillColour);
+    g.strokePath(filledArc, juce::PathStrokeType(3.0f, juce::PathStrokeType::curved, juce::PathStrokeType::rounded));
+    
 }
 
 } // namespace genesynth

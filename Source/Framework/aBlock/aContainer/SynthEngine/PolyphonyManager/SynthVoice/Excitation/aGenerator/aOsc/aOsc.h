@@ -14,14 +14,16 @@ public:
     void process(const juce::dsp::ProcessContextReplacing<float>& context) override;
     float getLastRawSample() const { return lastRawSample; }
 
+    virtual float getFrequencyModulation(float /*macro*/) { return 0.0f; }
+
 protected:
     const float* macroSignal;
     StaticParameter* wave;
     StaticParameter* ratio;
+    double sampleRate = 44100.0;
+    float currentPhase = 0.0f;
     
-    juce::dsp::Oscillator<float> osc { [](float x){ return std::sin(x); } };
     juce::dsp::Gain<float> gain;
-    int currentWaveform = -1;
     
     juce::SmoothedValue<float> smoothVol;
     juce::SmoothedValue<float> smoothFreq;
