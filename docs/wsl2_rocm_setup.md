@@ -18,7 +18,7 @@ graph TD
         B -->|Mappage noyau WSL| C[/dev/dxg]
         C --> D[librocdxg.so v1.2.0]
         D -->|Pont d'appels compute| E[HSA Runtime /opt/rocm/lib/libhsa-runtime64.so]
-        E --> F[PyTorch 2.12.1+rocm7.2 dans venv]
+        E --> F[PyTorch 2.13.0+rocm7.2 dans .venv via uv]
         G[Stub C ctypes] -.->|Mute rocprofiler| F
     end
 ```
@@ -41,7 +41,10 @@ graph TD
 
 ### Défi n°3 : Le crash de `rocprofiler` sur WSL2 (PyTorch 2.12+)
 * **Problème** : À partir de PyTorch 2.12, le profileur de performance `rocprofiler` est lié statiquement au package. À l'initialisation, il interroge le chemin de topologie `/sys/class/kfd/...` pour compter les agents de profilage. Sous WSL2 (qui utilise `/dev/dxg`), ce dossier n'existe pas. Constatant une incohérence (0 agent de profilage pour 2 agents de calcul HSA), PyTorch déclenche un signal d'avortement (`Aborted / core dumped`).
-* **Résolution** : Créer un **Stub C** (une bibliothèque vide) qui redéfinit les fonctions d'enregistrement de `rocprofiler` et les neutralise. Ce stub est chargé dynamiquement par Python via `ctypes` avant l'import de `torch`, évitant ainsi d'avoir à modifier les fichiers internes du venv.
+* **Résolution** : Créer un **Stub C** (une bibliothèque vide) qui redéfinit les fonctions d'enregistrement de `rocprofiler` et les neutralise. Utiliser ce stub via `LD_PRELOAD` lors du lancement de vos scripts :
+```bash
+HSA_OVERRIDE_GFX_VERSION=11.0.1 LD_PRELOAD=/home/tristan/genesynth/scripts/librocprofiler64.so uv run python ml/pipeline.py
+```
 
 ---
 
@@ -91,9 +94,9 @@ graph TD
        return 0; // Succès silencieux
    }
    ```
-2. Compiler sous forme de bibliothèque partagée ELF64 :
+2. Compiler ce stub en librairie partagée :
    ```bash
-   gcc -shared -fPIC -o /opt/rocm/lib/librocprofiler_stub.so rocprofiler_stub.c
+   gcc -shared -fPIC -o scripts/librocprofiler64.so scripts/rocprofiler_stub.c
    ```
 
 ### Étape 4 : Configuration des variables d'environnement (`~/.bashrc`)
@@ -106,7 +109,24 @@ export HSA_ENABLE_DXG_DETECTION=1
 export HSA_OVERRIDE_GFX_VERSION=11.0.1
 ```
 
-### Étape 5 : Lancement dans le code Python
+### Étape 5 : Installation de PyTorch (Version ROCm) avec `uv`
+Sous WSL2 avec AMD, l'installation par défaut via un `pyproject.toml` classique ou `uv sync` risque de télécharger la version CUDA de PyPI ou de subir un timeout silencieux à cause de la taille gigantesque de l'archive (près de 6 Go).
+
+**Méthode recommandée (Téléchargement direct + `uv`) :**
+1. Télécharger directement l'archive (Wheel) pour éviter les coupures réseau :
+   ```bash
+   wget -c https://download-r2.pytorch.org/whl/rocm7.2/torch-2.13.0%2Brocm7.2-cp312-cp312-manylinux_2_28_x86_64.whl
+   ```
+2. Forcer l'installation de l'archive locale dans `uv`, en lui précisant l'index tiers pour qu'il puisse résoudre la dépendance cachée `triton-rocm` :
+   ```bash
+   uv pip install ./torch-2.13.0+rocm7.2-cp312-cp312-manylinux_2_28_x86_64.whl --extra-index-url https://download.pytorch.org/whl/rocm7.2
+   ```
+3. (Optionnel) Supprimer l'archive téléchargée pour libérer de l'espace :
+   ```bash
+   rm torch*.whl
+   ```
+
+### Étape 6 : Lancement dans le code Python
 Dans chaque script Python utilisant PyTorch, charger le stub au tout début du fichier **avant** d'importer `torch` :
 ```python
 import ctypes
@@ -130,8 +150,8 @@ import torch
   ```
   *(Doit lister deux agents : Agent 1 (ton CPU) et Agent 2 (gfx1101, ta carte graphique RX 7800 XT))*
 
-* **Vérifier la détection PyTorch** (depuis ton venv actif) :
+* **Vérifier la détection PyTorch** (via uv) :
   ```bash
-  python3 scripts/check_gpu.py
+  uv run python ml/check_gpu.py
   ```
   *(Doit afficher `ROCm disponible : True` et identifier le GPU `AMD Radeon RX 7800 XT`)*

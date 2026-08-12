@@ -180,6 +180,14 @@ target_include_directories(genesynth_python_api PRIVATE
 
 target_link_libraries(genesynth_python_api PRIVATE
     genesynth_prototype
+    juce::juce_audio_utils
+    juce::juce_audio_plugin_client
+    juce::juce_dsp
+    onnxruntime_lib
+)
+
+target_include_directories(genesynth_python_api PRIVATE
+    "${CMAKE_CURRENT_BINARY_DIR}/genesynth_prototype_artefacts/JuceLibraryCode"
 )
 
 if(WIN32)

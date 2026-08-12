@@ -9,19 +9,22 @@ class GeneSynth:
         Initializes the headless GeneSynth engine.
         """
         if lib_path is None:
-            # Guess the default build path
+            # Try to resolve relative to this file's location
+            package_dir = os.path.dirname(os.path.abspath(__file__))
+            root_dir = os.path.abspath(os.path.join(package_dir, "..", ".."))
             system = platform.system()
+            
             if system == "Windows":
                 lib_name = "genesynth_python_api.dll"
                 search_paths = [
-                    os.path.join("..", "build-win", "Release", lib_name),
-                    os.path.join("..", "build-win", "Debug", lib_name),
+                    os.path.join(root_dir, "build-win", "Release", lib_name),
+                    os.path.join(root_dir, "build-win", "Debug", lib_name),
                     os.path.join("build-win", "Release", lib_name),
                 ]
             else:
                 lib_name = "libgenesynth_python_api.so"
                 search_paths = [
-                    os.path.join("..", "build", lib_name),
+                    os.path.join(root_dir, "build", lib_name),
                     os.path.join("build", lib_name),
                 ]
             
@@ -31,7 +34,7 @@ class GeneSynth:
                     break
             
             if lib_path is None:
-                raise FileNotFoundError(f"Could not find {lib_name} in standard build directories.")
+                raise FileNotFoundError(f"Could not find {lib_name} in standard build directories (searched in {search_paths}).")
 
         # Load the library
         self.lib = ctypes.CDLL(os.path.abspath(lib_path))

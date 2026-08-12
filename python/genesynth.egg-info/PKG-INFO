@@ -1,0 +1,9 @@
+Metadata-Version: 2.4
+Name: genesynth
+Version: 0.1.0
+Summary: Python API for the GeneSynth Audio Engine
+Requires-Python: >=3.10
+Description-Content-Type: text/markdown
+Requires-Dist: numpy
+Requires-Dist: torch
+Requires-Dist: pyyaml

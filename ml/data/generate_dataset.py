@@ -49,7 +49,9 @@ def generate_constrained_preset(synth):
             
     return params
 
-def main():
+import sys
+
+def generate(num_samples=100, output_path="dataset_test.pt"):
     print("Loading GeneSynth Python API...")
     try:
         synth = GeneSynth()
@@ -60,7 +62,6 @@ def main():
         
     print(f"GeneSynth loaded! Found {synth.num_params} parameters.")
     
-    num_samples = 100
     features_list = []
     labels_list = []
     
@@ -96,9 +97,18 @@ def main():
     print(f"Labels (Parameters):     {Y.shape}  # Expected: [N, 41]")
     
     # Save dataset
-    out_file = "dataset_test.pt"
-    torch.save({'features': X, 'labels': Y}, out_file)
-    print(f"Saved to {out_file}")
+    torch.save({'features': X, 'labels': Y}, output_path)
+    print(f"Saved to {output_path}")
+
+def main():
+    num_samples = 100
+    if len(sys.argv) > 1:
+        try:
+            num_samples = int(sys.argv[1])
+        except ValueError:
+            print("Invalid number of samples provided.")
+            return
+    generate(num_samples=num_samples, output_path="dataset_test.pt")
 
 if __name__ == "__main__":
     main()

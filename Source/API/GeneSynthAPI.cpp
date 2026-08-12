@@ -23,7 +23,7 @@ void* GeneSynth_Create(double sampleRate) {
     ctx->sampleRate = sampleRate;
     ctx->processor = std::make_unique<GeneSynthAudioProcessor>();
     ctx->processor->prepareToPlay(sampleRate, 512);
-    ctx->renderBuffer.setSize(1, (int)sampleRate); // 1 second of mono audio
+    ctx->renderBuffer.setSize(2, (int)sampleRate); // 1 second of stereo audio
     
     // Cache the parameter IDs
     for (int i = 0; i < ctx->processor->getParameters().size(); ++i) {
@@ -80,7 +80,7 @@ void GeneSynth_RenderFeatures(void* instance, const float* params, float* outSpe
     
     while (sampleIndex < numSamples) {
         int numThisTime = std::min(blockSize, numSamples - sampleIndex);
-        juce::AudioBuffer<float> subBuffer(ctx->renderBuffer.getArrayOfWritePointers(), 1, sampleIndex, numThisTime);
+        juce::AudioBuffer<float> subBuffer(ctx->renderBuffer.getArrayOfWritePointers(), 2, sampleIndex, numThisTime);
         
         ctx->processor->processBlock(subBuffer, ctx->midiBuffer);
         

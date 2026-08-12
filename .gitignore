@@ -83,6 +83,13 @@ env/
 tests/output/
 *.wav
 
+# Machine Learning Outputs
+*.pt
+*.pth
+*.onnx
+*.onnx.data
+models/
+
 # IDEs and Editors
 .vscode/
 .idea/
